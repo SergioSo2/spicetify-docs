@@ -1,44 +1,81 @@
----
-title: Create Extensions
-description: 🔨 Creating small addons for Spicetify.
----
+//@ts-check
+// NAME: adblock
+// AUTHOR: CharlieS1103
+// DESCRIPTION: Block all audio and UI ads on Spotify
+/// <reference path="../../spicetify-cli/globals.d.ts" />
+(function adblock() {
+    const { Platform } = Spicetify;
+    if (!Platform) {
+        setTimeout(adblock, 300)
+        return
+    }
+    const styleSheet = document.createElement("style")
+    styleSheet.innerHTML =
+        `
+    .MnW5SczTcbdFHxLZ_Z8j, .WiPggcPDzbwGxoxwLWFf, .ReyA3uE3K7oEz7PTTnAn, .main-leaderboardComponent-container, .sponsor-container, a.link-subtle.main-navBar-navBarLink.GKnnhbExo0U9l7Jz2rdc, button[title="Upgrade to Premium"], button[aria-label="Upgrade to Premium"], .main-topBar-UpgradeButton, .main-contextMenu-menuItem a[href^="https://www.spotify.com/premium/"] {
+    display: none !important;
+    }
+    `
+    document.body.appendChild(styleSheet);
+    
+    delayAds();
+    
+    const billboard = Spicetify.Platform.AdManagers.billboard.displayBillboard;
+    Spicetify.Platform.AdManagers.billboard.displayBillboard = function (arguments) {
+        Spicetify.Platform.AdManagers.billboard.finish()
+        // hook before call
+        var ret = billboard.apply(this, arguments);
+        // hook after call
+        Spicetify.Platform.AdManagers.billboard.finish()
+        const observer = new MutationObserver((mutations, obs) => {
+            const billboardAd = document.getElementById('view-billboard-ad');
+            if (billboardAd) {
+                Spicetify.Platform.AdManagers.billboard.finish()
+                obs.disconnect();
+                return;
+            }
+        });
+        observer.observe(document, {
+            childList: true,
+            subtree: true
+        });
+        return ret;
+    };
 
-Notes:
+    async function delayAds() {
+        if(Spicetify.Platform?.UserAPI?._product_state.putOverridesValues) {
+            await Spicetify.Platform.UserAPI._product_state.putOverridesValues({ pairs: { ads: "0", catalogue: "premium", product: "premium", type: "premium" } });
+        if (!Spicetify.Platform?.UserAPI) {
+            setTimeout(delayAds, 300);
+            return; 
+        }
+        const productState = Spicetify.Platform.UserAPI._product_state || Spicetify.Platform.UserAPI._product_state_service;
 
-- This tutorial assumes you chose to generate an example in Create Spicetify App.
+        await productState.putOverridesValues({ pairs: { ads: "0", catalogue: "premium", product: "premium", type: "premium" } });
+        Spicetify.Platform.AdManagers.audio.audioApi.cosmosConnector.increaseStreamTime(-100000000000);
+        Spicetify.Platform.AdManagers.billboard.billboardApi.cosmosConnector.increaseStreamTime(-100000000000);
+        await Spicetify.Platform.AdManagers.audio.disable();
+        await Spicetify.Platform.AdManagers.billboard.disable();
+        await Spicetify.Platform.AdManagers.leaderboard.disableLeaderboard();
+        await Spicetify.Platform.AdManagers.sponsoredPlaylist.disable();
+        
+        console.log("[Adblock] Ads disabled", Spicetify.Platform.AdManagers);
+    };
+    setInterval(delayAds, 30 * 10000);
 
-After creating a new Spicetify Creator project and choosing "Extension" as your app's type, your project's structure should look like this (With the generated example):
+    (async function disableEsperantoAds() {
+        if (!Spicetify.Platform?.UserAPI?._product_state) {
+        if (!Spicetify.Platform?.UserAPI) {
+            setTimeout(disableEsperantoAds, 300);
+            return;
+        }
+        await Spicetify.Platform.UserAPI._product_state.putOverridesValues({ pairs: { ads: "0", catalogue: "premium", product: "premium", type: "premium" } });
+        Spicetify.Platform.UserAPI._product_state.subValues({ keys: ["ads"] }, () => {
+        const productState = Spicetify.Platform.UserAPI._product_state || Spicetify.Platform.UserAPI._product_state_service;
 
-```
-my-app/
-  .gitattributes
-  .gitignore
-  package.json
-  README.md
-  tsconfig.json
-  yarn.lock
-  src/
-    ...
-  node_modules/
-    ...
-```
-
-For now, we only care about the `src/` folder, which structure looks like this
-
-```
-src/
-  app.tsx
-  settings.json
-  types/
-    ...
-```
-
-`app.tsx` exports a function that will be executed every time Spotify starts up.
-It comes with an example that says "Hello!" to the user when Spotify starts up.  
-`settings.json` is a simple JSON file containing 1 key:
-
-```json
-{
-  "nameId": "my-app" // The id of your app
-}
-```
+        await productState.putOverridesValues({ pairs: { ads: "0", catalogue: "premium", product: "premium", type: "premium" } });
+        productState.subValues({ keys: ["ads"] }, () => {
+            delayAds();
+        });
+    })();
+})()
